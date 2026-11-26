@@ -173,7 +173,7 @@ export function createDemoBackend({ onChange } = {}) {
     async matches(id) {
       const source = find(id);
       const ranked = rankMatches(source, items.filter(item => item.ownerId !== source.ownerId));
-      return Promise.all(ranked.map(async match => ({ ...(await view(match)), ...Object.fromEntries(['score', 'sharedLabels', 'sameCategory', 'sameLocation', 'titleOverlap', 'photoSimilarity'].map(key => [key, match[key]])) })));
+      return Promise.all(ranked.map(async match => ({ ...(await view(match)), ...Object.fromEntries(['score', 'sharedLabels', 'sameCategory', 'sameLocation', 'titleOverlap', 'photoSimilarity', 'sameType', 'sameColour', 'colourConflict'].map(key => [key, match[key]])) })));
     },
     async report() { return { message: 'Thanks. In the real app a moderator reviews reported posts.' }; },
 

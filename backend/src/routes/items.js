@@ -127,8 +127,8 @@ export async function matchesFor({ deps, user, params }) {
   const candidates = await deps.store.matchCandidates(deps.campusId, opposite, item.category);
   const ranked = rankMatches(item, candidates.filter(candidate => candidate.ownerId !== item.ownerId));
   const matches = await Promise.all(ranked.map(async match => {
-    const { sharedLabels, sameCategory, sameLocation, titleOverlap, photoSimilarity, score } = match;
-    return { ...(await toView(deps, match, user)), sharedLabels, sameCategory, sameLocation, titleOverlap, photoSimilarity, score };
+    const { sharedLabels, sameCategory, sameLocation, titleOverlap, photoSimilarity, score, sameType, sameColour, colourConflict } = match;
+    return { ...(await toView(deps, match, user)), sharedLabels, sameCategory, sameLocation, titleOverlap, photoSimilarity, score, sameType, sameColour, colourConflict };
   }));
   return ok({ matches, status: item.status });
 }

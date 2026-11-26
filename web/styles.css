@@ -2025,3 +2025,5 @@ a.text-action { text-decoration: none; }
   .type-cards { grid-template-columns: 1fr; }
   .profile-card { padding: 20px; }
 }
+
+.score { background: var(--green) !important; color: #fff !important; font-weight: 700; padding: 3px 10px; }

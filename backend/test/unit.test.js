@@ -115,3 +115,15 @@ test('buildUpdate turns plain objects into a DynamoDB update', () => {
   assert.equal(update.ConditionExpression, '#status IN (:in_status_0, :in_status_1) AND #ownerId = :eq_ownerId AND attribute_not_exists(#removedAt) AND #kind <> :not_kind');
   assert.deepEqual(update.ExpressionAttributeValues, { ':set_status': 'ACTIVE', ':in_status_0': 'PROCESSING', ':in_status_1': 'FAILED', ':eq_ownerId': 'u', ':not_kind': 'X' });
 });
+
+test('black earbuds never match a calculator; colour and place matter', () => {
+  const lost = { itemId: 'l', itemType: 'LOST', status: 'ACTIVE', category: 'electronics', title: 'buds black colour', description: 'black Samsung', location: 'Cafeteria' };
+  const calculator = { itemId: 'c', itemType: 'FOUND', status: 'ACTIVE', category: 'electronics', title: 'Casio fx-991 calculator', location: 'Computer centre' };
+  const whiteBuds = { itemId: 'w', itemType: 'FOUND', status: 'ACTIVE', category: 'electronics', title: 'White earbuds case', location: 'Library' };
+  const blackBuds = { itemId: 'b', itemType: 'FOUND', status: 'ACTIVE', category: 'electronics', title: 'Black earphones', location: 'Cafeteria' };
+  const ranked = rankMatches(lost, [calculator, whiteBuds, blackBuds]);
+  assert.deepEqual(ranked.map(match => match.itemId), ['b', 'w']);
+  assert.equal(ranked[0].sameType, 'earbuds');
+  assert.equal(ranked[0].sameColour, 'black');
+  assert.ok(ranked[1].colourConflict);
+});

@@ -60,8 +60,8 @@ function detailMarkup(item) {
 }
 
 function matchMarkup(source, match) {
-  const reasons = [match.photoSimilarity, match.sharedLabels?.length ? `Shared labels: ${match.sharedLabels.join(', ')}` : '', match.sameCategory && 'Same category',
-    match.titleOverlap >= 0.15 && 'Similar description', match.sameLocation && 'Same place'].filter(Boolean).map(escapeHTML).join(' · ');
+  const reasons = [match.sameType && `Same item: ${match.sameType}`, match.sameColour && `Same colour: ${match.sameColour}`, match.colourConflict && 'Different colour', match.photoSimilarity, match.sharedLabels?.length ? `Shared labels: ${match.sharedLabels.join(', ')}` : '', match.sameCategory && 'Same category',
+    match.titleOverlap >= 0.2 && 'Similar description', match.sameLocation && 'Same place'].filter(Boolean).map(escapeHTML).join(' · ');
   return `<article class="match-card">
     <div class="match-photo-pair"><div class="compare-thumb">${photoMarkup(source)}<small>Yours</small></div><span class="compare-arrow">↔</span>
       <div class="compare-thumb">${photoMarkup(match)}<small>Possible match</small></div></div>
