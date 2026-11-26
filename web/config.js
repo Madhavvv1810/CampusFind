@@ -1,6 +1,6 @@
 /* Written by scripts/deploy.sh from the campusfind CloudFormation outputs. Empty values = in-browser demo mode. */
 window.CAMPUSFIND_CONFIG = {
-  apiUrl: 'https://r5rgk6kzp8.execute-api.us-east-1.amazonaws.com',
-  cognitoDomain: 'https://campusfind-767397913960.auth.us-east-1.amazoncognito.com',
-  clientId: '5v251evoo5l3gbo0bsu3sq4k9i',
+  apiUrl: 'https://y10kckea64.execute-api.ap-southeast-2.amazonaws.com',
+  cognitoDomain: 'https://campusfind-653714462762.auth.ap-southeast-2.amazoncognito.com',
+  clientId: '64dbej9v717bftn9mdrbhrjq6d',
 };

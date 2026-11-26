@@ -2,12 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: CampusFind - serverless campus lost-and-found with matching and private chat
 
-# AWS Academy sandboxes cannot create IAM roles, so every function uses the lab's existing LabRole.
-# On a normal AWS account, see docs/least-privilege-policies.yaml for scoped per-function policies.
+# Each function gets its own least-privilege role (SAM policy templates + one Rekognition statement).
 Parameters:
-  LabRoleArn:
-    Type: String
-    Description: ARN of an existing role Lambda can assume (AWS Academy LabRole)
   AllowedEmailDomain:
     Type: String
     Default: thapar.edu
@@ -177,7 +173,6 @@ Resources:
   PreSignUpFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Role: !Ref LabRoleArn
       Handler: src/presignup.handler
       Timeout: 5
       Environment:
@@ -213,8 +208,12 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Role: !Ref LabRoleArn
       Handler: src/index.handler
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ItemsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ClaimsTable }
+        - S3CrudPolicy: { BucketName: !Ref PhotoBucket }
+        - LambdaInvokePolicy: { FunctionName: !Ref ImageWorker }
       Environment:
         Variables:
           ITEMS_TABLE: !Ref ItemsTable
@@ -276,8 +275,14 @@ Resources:
   ImageWorker:
     Type: AWS::Serverless::Function
     Properties:
-      Role: !Ref LabRoleArn
       Handler: src/analyze.handler
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ItemsTable }
+        - S3ReadPolicy: { BucketName: !Ref PhotoBucket }
+        - Statement:
+            - Effect: Allow
+              Action: rekognition:DetectLabels
+              Resource: '*'
       Timeout: 60
       Environment:
         Variables:

@@ -18,10 +18,7 @@ fi
 
 cd "$APP_DIR"
 sam build --template-file template.yaml
-# AWS Academy: Lambda runs as the lab's LabRole (the sandbox cannot create roles). Override with LAB_ROLE_ARN.
-ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-LAB_ROLE_ARN="${LAB_ROLE_ARN:-arn:aws:iam::$ACCOUNT_ID:role/LabRole}"
-sam deploy --resolve-s3 --capabilities CAPABILITY_IAM --stack-name "$STACK_NAME" --region "$REGION" --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "LabRoleArn=$LAB_ROLE_ARN" "AllowedEmailDomain=${ALLOWED_EMAIL_DOMAIN-thapar.edu}"
+sam deploy --resolve-s3 --capabilities CAPABILITY_IAM --stack-name "$STACK_NAME" --region "$REGION" --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "AllowedEmailDomain=${ALLOWED_EMAIL_DOMAIN-thapar.edu}"
 
 get_output() {
   aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" \
