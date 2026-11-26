@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { createDynamoStore } from './aws/store.js';
 import { createS3Files } from './aws/files.js';
 import { createLambdaAnalyzer } from './aws/analyzer.js';
+import { createCognitoUsers } from './aws/users.js';
 
 const env = name => process.env[name] ?? '';
 
@@ -11,4 +12,5 @@ export const handler = createApp({
   store: createDynamoStore({ itemsTable: env('ITEMS_TABLE'), claimsTable: env('CLAIMS_TABLE') }),
   files: createS3Files({ bucket: env('PHOTO_BUCKET') }),
   analyzer: createLambdaAnalyzer({ functionName: env('IMAGE_WORKER_NAME') }),
+  users: createCognitoUsers({ userPoolId: env('USER_POOL_ID') }),
 });

@@ -214,6 +214,10 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref ClaimsTable }
         - S3CrudPolicy: { BucketName: !Ref PhotoBucket }
         - LambdaInvokePolicy: { FunctionName: !Ref ImageWorker }
+        - Statement:
+            - Effect: Allow
+              Action: [cognito-idp:ListUsers, cognito-idp:ListUsersInGroup, cognito-idp:AdminDisableUser, cognito-idp:AdminEnableUser]
+              Resource: !GetAtt UserPool.Arn
       Environment:
         Variables:
           ITEMS_TABLE: !Ref ItemsTable
@@ -221,6 +225,7 @@ Resources:
           PHOTO_BUCKET: !Ref PhotoBucket
           IMAGE_WORKER_NAME: !Ref ImageWorker
           CAMPUS_ID: default-campus
+          USER_POOL_ID: !Ref UserPool
       # One function serves every route (see backend/src/app.js ROUTES); /stats is public.
       Events:
         Stats:
@@ -271,6 +276,15 @@ Resources:
         Moderate:
           Type: HttpApi
           Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/admin/items/{itemId}/moderate" }
+        AdminPosts:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/admin/posts" }
+        AdminUsers:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/admin/users" }
+        AdminUserStatus:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/admin/users/{username}/status" }
 
   ImageWorker:
     Type: AWS::Serverless::Function

@@ -25,6 +25,9 @@ export const ROUTES = {
   'GET /inbox': { handler: claims.inbox },
   'GET /admin/overview': { handler: admin.overview },
   'POST /admin/items/{itemId}/moderate': { handler: admin.moderate },
+  'GET /admin/posts': { handler: admin.allPosts },
+  'GET /admin/users': { handler: admin.users },
+  'POST /admin/users/{username}/status': { handler: admin.setUserStatus },
 };
 
 function toResponse(error, log, context) {

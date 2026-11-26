@@ -6,6 +6,8 @@ export function isAllowedEmail(email, domain) {
 
 export async function handler(event) {
   const domain = process.env.ALLOWED_EMAIL_DOMAIN;
+  // Accounts created by an operator (scripts/create-admin.mjs) may use any email, e.g. Gmail admins.
+  if (event.triggerSource === 'PreSignUp_AdminCreateUser') return event;
   if (!isAllowedEmail(event.request?.userAttributes?.email, domain)) {
     throw new Error(`Please sign up with your @${domain} email address.`);
   }

@@ -231,6 +231,9 @@ export function createDemoBackend({ onChange } = {}) {
 
     async adminOverview() { throw new Error('The admin panel needs the cloud version.'); },
     async moderate() { throw new Error('The admin panel needs the cloud version.'); },
+    async adminPosts() { throw new Error('The admin panel needs the cloud version.'); },
+    async adminUsers() { throw new Error('The admin panel needs the cloud version.'); },
+    async setUserStatus() { throw new Error('The admin panel needs the cloud version.'); },
 
     /** Restores the sample board. */
     reset() {

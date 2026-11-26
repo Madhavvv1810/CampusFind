@@ -176,6 +176,9 @@ test('three reports hide a post; moderators review, restore or remove it', async
   assert.equal((await call('asha', 'GET /items')).body.items.length, 1, 'owner still sees it');
 
   assert.equal((await call('bilal', 'GET /admin/overview')).status, 403);
+  assert.equal((await call('bilal', 'GET /admin/posts')).status, 403);
+  assert.equal((await call('bilal', 'GET /admin/users')).status, 403);
+  assert.equal((await call('mod', 'GET /admin/posts')).body.posts.length, 1);
   const overview = await call('mod', 'GET /admin/overview');
   assert.equal(overview.body.flagged.length, 1);
   assert.equal(overview.body.flagged[0].reportCount, 3);

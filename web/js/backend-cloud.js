@@ -51,5 +51,8 @@ export const cloudBackend = {
   decide: (itemId, claimId, status, reply) => request(chat(itemId, claimId), { method: 'PATCH', body: { status, reply } }).then(data => data.claim),
 
   adminOverview: () => request('/admin/overview'),
+  adminPosts: () => request('/admin/posts'),
+  adminUsers: () => request('/admin/users'),
+  setUserStatus: (username, enabled) => request(`/admin/users/${encodeURIComponent(username)}/status`, { method: 'POST', body: { enabled } }),
   moderate: (id, action) => request(`/admin${item(id)}/moderate`, { method: 'POST', body: { action } }),
 };

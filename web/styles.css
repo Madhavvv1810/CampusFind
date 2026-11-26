@@ -2027,3 +2027,32 @@ a.text-action { text-decoration: none; }
 }
 
 .score { background: var(--green) !important; color: #fff !important; font-weight: 700; padding: 3px 10px; }
+
+/* ===================== Admin portal ===================== */
+.admin-hero { background: linear-gradient(120deg, #13241c, #205a45); color: #fff; border-radius: 16px; padding: 26px 30px; margin-bottom: 14px; }
+.admin-hero .eyebrow { color: #9fd18b; }
+.admin-hero h1 { margin: 6px 0 4px; font-size: 30px; letter-spacing: -0.8px; }
+.admin-hero p { margin: 0; opacity: 0.85; }
+.admin-tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.admin-tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 12px 16px; font: 600 13px "DM Sans", sans-serif; color: #4b5a52; cursor: pointer; }
+.admin-tabs button.active { color: var(--green); border-bottom-color: var(--green); }
+.admin-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.admin-toolbar input, .admin-toolbar select { padding: 9px 12px; border: 1px solid #dde3da; border-radius: 6px; font: 13px "DM Sans", sans-serif; background: #fff; }
+.admin-toolbar input { flex: 1; min-width: 220px; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.admin-table th { text-align: left; background: #f6f8f4; color: #536158; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; position: sticky; top: 0; }
+.admin-table td { padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: middle; }
+.admin-table tr:hover td { background: #fafcf9; }
+.admin-table a { color: var(--ink); font-weight: 600; }
+.admin-table .status-tag { position: static; }
+.admin-table .thumb { width: 52px; }
+.admin-table .thumb img, .admin-table .thumb .photo-placeholder { width: 44px; height: 44px; min-height: 0; object-fit: cover; border-radius: 6px; }
+.admin-table .thumb .photo-placeholder small { display: none; }
+.admin-table .thumb .photo-placeholder span { font-size: 18px; }
+.row-actions { white-space: nowrap; text-align: right; }
+.row-actions .button { padding: 6px 10px; font-size: 11px; }
+.chip-danger { background: #f6e5e1; color: var(--coral); }
+.admin-login { max-width: 420px; margin: 50px auto; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 36px 28px; }
+.admin-login .avatar { margin: 0 auto 12px; }
+.admin-login h1 { margin: 0 0 6px; }
