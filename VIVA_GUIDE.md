@@ -8,14 +8,14 @@
 
 **Name:** *Campus* + *Find*: it helps the campus find lost things.
 
-**Live link:** https://d12eqour2qu335.cloudfront.net
+**Live link:** https://d10um63tuj87s.cloudfront.net
 
 The whole thing runs on **Amazon Web Services (AWS)** as a **serverless** application: there is no computer of mine running all the time. AWS runs my code only when someone uses the site.
 
-## 2. Why is the link "d12eqour2qu335.cloudfront.net"?
+## 2. Why is the link "d10um63tuj87s.cloudfront.net"?
 
 - My website is delivered by **Amazon CloudFront**, AWS's content delivery network (CDN).
-- When you create a CloudFront distribution, AWS gives it a **free, automatically generated address**: a random ID (`d12eqour2qu335`) followed by `.cloudfront.net`. I did not choose those letters; they only make the address unique.
+- When you create a CloudFront distribution, AWS gives it a **free, automatically generated address**: a random ID (`d10um63tuj87s`) followed by `.cloudfront.net`. I did not choose those letters; they only make the address unique.
 - It comes with **HTTPS (the padlock) for free**.
 - To get a name like `campusfind.in`, I would have to **buy a domain** (about ₹500–1000 a year), add a certificate and point the domain to CloudFront. I skipped this because it costs money and is not needed to show the cloud features. It is easy to add later; the app does not change.
 
@@ -83,8 +83,8 @@ The whole thing runs on **Amazon Web Services (AWS)** as a **serverless** applic
 | Problem | Solution |
 |---|---|
 | My first AWS Academy lab (Cloud Foundations) did not allow creating databases | Moved to the **Cloud Developing course Sandbox** |
-| The sandbox only allows the **us-east-1** (N. Virginia) region, not Mumbai | Deployed in us-east-1 |
-| The sandbox cannot create new permission roles | Used the lab's existing **LabRole** |
+| Academy sandbox sessions expire and block several services | Final deployment on my own Free-plan AWS account (Sydney), online permanently |
+| The sandbox cannot create new permission roles | My own account uses a separate minimal role for each function |
 | Rekognition (image AI) is blocked in the sandbox | Found the error in **CloudWatch logs**; changed the worker so posts still go live and matching uses the other clues |
 
 ## 9. Testing
@@ -103,7 +103,7 @@ The whole thing runs on **Amazon Web Services (AWS)** as a **serverless** applic
 
 **Q: Why not EC2?** I would have to manage the operating system, updates and scaling, and pay even when no one uses the site.
 
-**Q: Where is the data stored?** Posts and chats in DynamoDB; photos in a private S3 bucket; both in the us-east-1 region.
+**Q: Where is the data stored?** Posts and chats in DynamoDB; photos in a private S3 bucket; both in the ap-southeast-2 (Sydney) region.
 
 **Q: How does matching work?** It compares the photo, the words in the description, the category and the place, gives a score, and shows the best matches. The owner always confirms in chat.
 

@@ -4,7 +4,7 @@
 
 **CampusFind** is a serverless lost-and-found service for a college campus, built on AWS. Students sign in with their college email, post what they lost or found, get ranked match suggestions, and talk to the finder or owner in a private chat until the item is handed back. Moderators review reported posts from an admin dashboard.
 
-**Live:** https://d12eqour2qu335.cloudfront.net · **Ops dashboard:** CloudWatch `campusfind-ops`
+**Live:** https://d10um63tuj87s.cloudfront.net · **Ops dashboard:** CloudWatch `campusfind-ops`
 
 ![Architecture](docs/architecture.png)
 
