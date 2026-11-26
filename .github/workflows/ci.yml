@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Unit and API tests (node:test, in-memory store)
+        run: npm test
+        working-directory: backend
+
+      - name: Browser demo uses the same matching code as the API
+        run: cmp backend/src/matching.js web/js/matching.js
+
+      - name: Syntax-check front-end modules and scripts
+        run: for f in web/js/*.js web/config.js scripts/*.mjs scripts/lib/*.mjs; do node --check "$f"; done
+
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Validate SAM template
+        run: sam validate --lint --region us-east-1
+        env:
+          AWS_DEFAULT_REGION: us-east-1

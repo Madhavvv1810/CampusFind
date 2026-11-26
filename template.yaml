@@ -1,0 +1,409 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CampusFind - serverless campus lost-and-found with matching and private chat
+
+# AWS Academy sandboxes cannot create IAM roles, so every function uses the lab's existing LabRole.
+# On a normal AWS account, see docs/least-privilege-policies.yaml for scoped per-function policies.
+Parameters:
+  LabRoleArn:
+    Type: String
+    Description: ARN of an existing role Lambda can assume (AWS Academy LabRole)
+  AllowedEmailDomain:
+    Type: String
+    Default: thapar.edu
+    Description: Only emails at this domain can sign up. Empty allows any email.
+  DevOrigin:
+    Type: String
+    Default: http://localhost:8123
+    Description: Local development origin allowed by CORS and Cognito (python3 -m http.server 8123 -d web)
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    Timeout: 20
+    MemorySize: 256
+    CodeUri: backend/
+
+Resources:
+  # ---------- Data ----------
+  ItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: itemId, AttributeType: S }
+        - { AttributeName: campusId, AttributeType: S }
+        - { AttributeName: createdAt, AttributeType: S }
+        - { AttributeName: matchKey, AttributeType: S }
+        - { AttributeName: ownerId, AttributeType: S }
+      KeySchema: [{ AttributeName: itemId, KeyType: HASH }]
+      GlobalSecondaryIndexes:
+        - IndexName: CampusIndex
+          KeySchema:
+            - { AttributeName: campusId, KeyType: HASH }
+            - { AttributeName: createdAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: MatchIndex
+          KeySchema:
+            - { AttributeName: matchKey, KeyType: HASH }
+            - { AttributeName: createdAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: OwnerIndex
+          KeySchema:
+            - { AttributeName: ownerId, KeyType: HASH }
+            - { AttributeName: createdAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      TimeToLiveSpecification: { AttributeName: expiresAt, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  ClaimsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: itemId, AttributeType: S }
+        - { AttributeName: claimId, AttributeType: S }
+        - { AttributeName: ownerId, AttributeType: S }
+        - { AttributeName: claimantId, AttributeType: S }
+        - { AttributeName: updatedAt, AttributeType: S }
+      KeySchema:
+        - { AttributeName: itemId, KeyType: HASH }
+        - { AttributeName: claimId, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: OwnerIndex
+          KeySchema:
+            - { AttributeName: ownerId, KeyType: HASH }
+            - { AttributeName: updatedAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: ClaimantIndex
+          KeySchema:
+            - { AttributeName: claimantId, KeyType: HASH }
+            - { AttributeName: updatedAt, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      TimeToLiveSpecification: { AttributeName: expiresAt, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  PhotoBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: [!Sub 'https://${SiteDistribution.DomainName}', !Ref DevOrigin]
+            AllowedMethods: [PUT, GET, HEAD]
+            AllowedHeaders: ['*']
+            ExposedHeaders: [ETag]
+            MaxAge: 3000
+
+  # ---------- Sign-in (Amazon Cognito) ----------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-students
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      Schema:
+        - { Name: name, AttributeDataType: String, Required: true, Mutable: true }
+      Policies:
+        PasswordPolicy: { MinimumLength: 8, RequireLowercase: true, RequireNumbers: true, RequireUppercase: false, RequireSymbols: false }
+      AccountRecoverySetting:
+        RecoveryMechanisms: [{ Name: verified_email, Priority: 1 }]
+      LambdaConfig:
+        PreSignUp: !GetAtt PreSignUpFunction.Arn
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: campusfind-web
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      SupportedIdentityProviders: [COGNITO]
+      CallbackURLs: [!Sub 'https://${SiteDistribution.DomainName}/', !Sub '${DevOrigin}/']
+      LogoutURLs: [!Sub 'https://${SiteDistribution.DomainName}/', !Sub '${DevOrigin}/']
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 30
+
+  # For scripts (seed data, live smoke tests) only. ADMIN_USER_PASSWORD_AUTH needs AWS IAM
+  # credentials to call, so it cannot be used from a browser.
+  ToolsClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: campusfind-tools
+      GenerateSecret: false
+      ExplicitAuthFlows: [ALLOW_ADMIN_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+
+  # Members can review reported posts (Admin panel in the app).
+  AdminsGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: admins
+      Description: CampusFind moderators
+      UserPoolId: !Ref UserPool
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub campusfind-${AWS::AccountId}
+      UserPoolId: !Ref UserPool
+
+  # Brand the Cognito hosted sign-in page in CampusFind green.
+  UserPoolUI:
+    Type: AWS::Cognito::UserPoolUICustomizationAttachment
+    DependsOn: UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientId: ALL
+      CSS: >-
+        .banner-customizable { background-color: #13241c; padding: 18px 0; }
+        .submitButton-customizable { background-color: #205a45; border-color: #205a45; font-size: 15px; }
+        .submitButton-customizable:hover { background-color: #2e7358; }
+        .textDescription-customizable { color: #1d2a25; }
+        .redirect-customizable { color: #205a45; }
+        .background-customizable { background-color: #ffffff; }
+
+  PreSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref LabRoleArn
+      Handler: src/presignup.handler
+      Timeout: 5
+      Environment:
+        Variables:
+          ALLOWED_EMAIL_DOMAIN: !Ref AllowedEmailDomain
+
+  PreSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PreSignUpFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  # ---------- API ----------
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: [!Sub 'https://${SiteDistribution.DomainName}', !Ref DevOrigin]
+        AllowHeaders: [authorization, content-type]
+        MaxAge: 600
+        AllowMethods: [GET, POST, PATCH, DELETE, OPTIONS]
+      Auth:
+        DefaultAuthorizer: CognitoJwt
+        Authorizers:
+          CognitoJwt:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+              audience: [!Ref UserPoolClient, !Ref ToolsClient]
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref LabRoleArn
+      Handler: src/index.handler
+      Environment:
+        Variables:
+          ITEMS_TABLE: !Ref ItemsTable
+          CLAIMS_TABLE: !Ref ClaimsTable
+          PHOTO_BUCKET: !Ref PhotoBucket
+          IMAGE_WORKER_NAME: !Ref ImageWorker
+          CAMPUS_ID: default-campus
+      # One function serves every route (see backend/src/app.js ROUTES); /stats is public.
+      Events:
+        Stats:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/stats", Auth: { Authorizer: NONE } }
+        ListItems:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/items" }
+        CreateItem:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/items" }
+        GetItem:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/items/{itemId}" }
+        UpdateItem:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: PATCH, Path: "/items/{itemId}" }
+        DeleteItem:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: DELETE, Path: "/items/{itemId}" }
+        CompleteUpload:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/items/{itemId}/complete" }
+        Matches:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/items/{itemId}/matches" }
+        Report:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/items/{itemId}/report" }
+        ListChats:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/items/{itemId}/claims" }
+        StartChat:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/items/{itemId}/claims" }
+        UpdateChat:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: PATCH, Path: "/items/{itemId}/claims/{claimId}" }
+        SendMessage:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/items/{itemId}/claims/{claimId}/messages" }
+        Inbox:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/inbox" }
+        AdminOverview:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/admin/overview" }
+        Moderate:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/admin/items/{itemId}/moderate" }
+
+  ImageWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref LabRoleArn
+      Handler: src/analyze.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          ITEMS_TABLE: !Ref ItemsTable
+          PHOTO_BUCKET: !Ref PhotoBucket
+
+  # ---------- Monitoring ----------
+  ApiErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-api-5xx
+      AlarmDescription: The API returned server errors in the last 5 minutes.
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions: [{ Name: ApiId, Value: !Ref HttpApi }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  WorkerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-worker-errors
+      AlarmDescription: Photo analysis failed repeatedly.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{ Name: FunctionName, Value: !Ref ImageWorker }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  OpsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ${AWS::StackName}-ops
+      DashboardBody: !Sub |
+        {"widgets":[
+          {"type":"metric","x":0,"y":0,"width":12,"height":6,"properties":{"title":"API requests and errors","region":"${AWS::Region}","stat":"Sum","period":300,
+            "metrics":[["AWS/ApiGateway","Count","ApiId","${HttpApi}"],[".","4xx",".","."],[".","5xx",".","."]]}},
+          {"type":"metric","x":12,"y":0,"width":12,"height":6,"properties":{"title":"API latency (p50 / p95 ms)","region":"${AWS::Region}","period":300,
+            "metrics":[["AWS/ApiGateway","Latency","ApiId","${HttpApi}",{"stat":"p50"}],["...",{"stat":"p95"}]]}},
+          {"type":"metric","x":0,"y":6,"width":12,"height":6,"properties":{"title":"Lambda invocations and errors","region":"${AWS::Region}","stat":"Sum","period":300,
+            "metrics":[["AWS/Lambda","Invocations","FunctionName","${ApiFunction}"],[".","Errors",".","."],[".","Invocations",".","${ImageWorker}"],[".","Errors",".","."]]}},
+          {"type":"metric","x":12,"y":6,"width":12,"height":6,"properties":{"title":"DynamoDB consumed capacity","region":"${AWS::Region}","stat":"Sum","period":300,
+            "metrics":[["AWS/DynamoDB","ConsumedReadCapacityUnits","TableName","${ItemsTable}"],[".","ConsumedWriteCapacityUnits",".","."],[".","ConsumedReadCapacityUnits",".","${ClaimsTable}"],[".","ConsumedWriteCapacityUnits",".","."]]}},
+          {"type":"log","x":0,"y":12,"width":24,"height":6,"properties":{"title":"Slowest API requests (structured logs)","region":"${AWS::Region}",
+            "query":"SOURCE '/aws/lambda/${ApiFunction}' | filter message = 'request' | sort ms desc | limit 20 | fields @timestamp, route, status, ms"}}
+        ]}
+
+  # ---------- Website: S3 origin behind CloudFront (HTTPS) ----------
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub ${WebBucket.Arn}/*
+
+  SiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: CampusFind website
+        Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        DefaultRootObject: index.html
+        # Client-side routes (/browse, /item/<id>, …) are not files: serve the app shell for them.
+        CustomErrorResponses:
+          - { ErrorCode: 404, ResponseCode: 200, ResponsePagePath: /index.html, ErrorCachingMinTTL: 0 }
+          - { ErrorCode: 403, ResponseCode: 200, ResponsePagePath: /index.html, ErrorCachingMinTTL: 0 }
+        Origins:
+          - Id: site
+            DomainName: !Select [2, !Split ['/', !GetAtt WebBucket.WebsiteURL]]
+            CustomOriginConfig: { OriginProtocolPolicy: http-only }
+        DefaultCacheBehavior:
+          TargetOriginId: site
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6          # Managed-CachingOptimized
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03 # Managed-SecurityHeadersPolicy
+
+Outputs:
+  SiteUrl:
+    Value: !Sub 'https://${SiteDistribution.DomainName}'
+  DistributionId:
+    Value: !Ref SiteDistribution
+  ApiUrl:
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  CognitoDomain:
+    Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  ToolsClientId:
+    Value: !Ref ToolsClient
+  DashboardUrl:
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${OpsDashboard}
+  UserPoolId:
+    Value: !Ref UserPool
+  BucketName:
+    Value: !Ref WebBucket
+  ItemsTableName:
+    Value: !Ref ItemsTable
+  ClaimsTableName:
+    Value: !Ref ClaimsTable
+  PhotoBucketName:
+    Value: !Ref PhotoBucket

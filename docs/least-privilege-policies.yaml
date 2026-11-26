@@ -1,0 +1,33 @@
+# Scoped IAM policies for ApiFunction and ImageWorker on a normal AWS account.
+# Replace `Role: !Ref LabRoleArn` with these `Policies:` blocks to let SAM create least-privilege roles.
+
+ApiFunction:
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:UpdateItem, dynamodb:TransactWriteItems]
+              Resource:
+                - !GetAtt ItemsTable.Arn
+                - !Sub ${ItemsTable.Arn}/index/*
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:UpdateItem, dynamodb:TransactWriteItems]
+              Resource:
+                - !GetAtt ClaimsTable.Arn
+                - !Sub ${ClaimsTable.Arn}/index/*
+            - Effect: Allow
+              Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+              Resource: !Sub ${PhotoBucket.Arn}/uploads/*
+        - LambdaInvokePolicy: { FunctionName: !Ref ImageWorker }
+
+ImageWorker:
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:UpdateItem]
+              Resource: !GetAtt ItemsTable.Arn
+            - Effect: Allow
+              Action: [s3:GetObject]
+              Resource: !Sub ${PhotoBucket.Arn}/uploads/*
+            - Effect: Allow
+              Action: [rekognition:DetectLabels]
+              Resource: '*'
